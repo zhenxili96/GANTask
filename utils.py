@@ -180,8 +180,10 @@ def visualize(sess, dcgan, config, option):
     for idx in xrange(dcgan.test_num):
       print(" [*] %d" % idx)
       z_sample = np.random.uniform(-1, 1, size=(config.batch_size , dcgan.z_dim))
-      for kdx, z in enumerate(z_sample):
-        z[idx] = values[kdx]
+# =============================================================================
+#       for kdx, z in enumerate(z_sample):
+#         z[idx] = values[kdx]
+# =============================================================================
 
       samples = sess.run(dcgan.sampler, feed_dict={dcgan.z: z_sample})
 
