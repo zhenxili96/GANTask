@@ -28,11 +28,9 @@ MODEL_DIR = './imagenet'
 DATA_URL = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
 softmax = None
 
-aa= None
 # Call this function with list of images. Each of elements should be a 
 # numpy array with values ranging from 0 to 255.
 def get_inception_score(images, splits=10):
-  global aa
   assert(type(images) == list)
   assert(type(images[0]) == np.ndarray)
   assert(len(images[0].shape) == 3)
@@ -54,14 +52,70 @@ def get_inception_score(images, splits=10):
         pred = sess.run(softmax, {'ExpandDims:0': inp})
         preds.append(pred)
     preds = np.concatenate(preds, 0)
-    print (preds.shape)
-    aa = preds
     scores = []
     for i in range(splits):
       part = preds[(i * preds.shape[0] // splits):((i + 1) * preds.shape[0] // splits), :]
       kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
       kl = np.mean(np.sum(kl, 1))
       scores.append(np.exp(kl))
+    return np.mean(scores), np.std(scores)
+
+def get_mode_score(images, all_real_images, splits=10):
+  assert(type(images) == list)
+  assert(type(images[0]) == np.ndarray)
+  assert(len(images[0].shape) == 3)
+  assert(np.max(images[0]) > 10)
+  assert(np.min(images[0]) >= 0.0)
+  assert(type(all_real_images) == list)
+  assert(type(all_real_images[0]) == np.ndarray)
+  assert(len(all_real_images[0].shape) == 3)
+  assert(np.max(all_real_images[0]) > 10)
+  assert(np.min(all_real_images[0]) >= 0.0)
+  
+  ms_gen = []
+  ms_real = []
+  for img in images:
+    img = img.astype(np.float32)
+    ms_gen.append(np.expand_dims(img, 0))
+  for img in all_real_images:
+    img = img.astype(np.float32)
+    ms_real.append(np.expand_dims(img, 0))
+    
+  bs = 100
+  with tf.Session() as sess:
+    preds_gen = []
+    preds_real = []
+    n_batches_gen = int(math.ceil(float(len(ms_gen)) / float(bs)))
+    n_batches_real = int(math.ceil(float(len(ms_real)) / float(bs)))
+    for i in range(n_batches_gen):
+        sys.stdout.write(".")
+        sys.stdout.flush()
+        inp = ms_gen[(i * bs):min((i + 1) * bs, len(ms_gen))]
+        inp = np.concatenate(inp, 0)
+        pred = sess.run(softmax, {'ExpandDims:0': inp})
+        preds_gen.append(pred)
+    for i in range(n_batches_real):
+        sys.stdout.write("/")
+        sys.stdout.flush()
+        inp = ms_real[(i * bs):min((i + 1) * bs, len(ms_real))]
+        inp = np.concatenate(inp, 0)
+        pred = sess.run(softmax, {'ExpandDims:0': inp})
+        preds_real.append(pred)
+    preds_gen = np.concatenate(preds_gen, 0)
+    preds_real = np.concatenate(preds_real, 0)
+    scores = []
+    for i in range(splits):
+      ## is part
+      part = preds_gen[(i * preds_gen.shape[0] // splits):((i + 1) * preds_gen.shape[0] // splits), :]
+      kl = part * (np.log(part) - np.log(np.expand_dims(np.mean(part, 0), 0)))
+      kl = np.mean(np.sum(kl, 1))
+      ## extra part
+      part_real = preds_real[(i * preds_real.shape[0] // splits):((i + 1) * preds_real.shape[0] // splits), :]
+      p_M_y = np.expand_dims(np.mean(part, 0), 0)
+      p_M_ys = np.expand_dims(np.mean(part_real, 0), 0)
+      kl_extra = p_M_y * (np.log(p_M_y) - np.log(p_M_ys))
+      
+      scores.append(np.exp(kl - kl_extra))
     return np.mean(scores), np.std(scores)
 
 # This function is called automatically.
@@ -127,7 +181,13 @@ if __name__=='__main__':
         real_list = [real_imgs[j] for j in idx_real]
         imgs_list = np.concatenate((fake_list, real_list)).tolist()   
         images = [get_images(filename) for filename in imgs_list]
-        mean, std = get_inception_score(images)
+        all_real_images = [get_images(filename) for filename in real_imgs]
+        print (np.array(all_real_images).shape)
+        ### Inception score
+        #mean, std = get_inception_score(images)
+        ### Mode Score
+        mean, std = get_mode_score(images, all_real_images)
         print("{0},{1},{2}".format(i*1.0/100, mean, std))
         F.write("{0},{1},{2}\n".format(i*1.0/100, mean, std))
+        F.flush()
     F.close()
