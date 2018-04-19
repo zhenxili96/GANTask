@@ -16,7 +16,7 @@ def conv_out_size_same(size, stride):
 class DCGAN(object):
   def __init__(self, sess, input_height=108, input_width=108, crop=True,
          batch_size=64, sample_num = 64, output_height=64, output_width=64,
-         z_dim=100, gf_dim=64, df_dim=64,
+         z_dim=100, gf_dim=64, df_dim=64, test_num=100,
          gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
          input_fname_pattern='*.jpg', checkpoint_dir=None, sample_dir=None, data_dir='./data'):
     """
@@ -43,6 +43,7 @@ class DCGAN(object):
     self.output_width = output_width
 
     self.z_dim = z_dim
+    self.test_num = test_num
 
     self.gf_dim = gf_dim
     self.df_dim = df_dim
@@ -110,40 +111,37 @@ class DCGAN(object):
         return tf.nn.sigmoid_cross_entropy_with_logits(logits=x, targets=y)
 
 
-# =============================================================================
-#     ### Loss for GAN
-#     self.d_loss_real = tf.reduce_mean(
-#       sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
-#     self.d_loss_fake = tf.reduce_mean(
-#       sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
-#     self.g_loss = tf.reduce_mean(
-#       sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
-#                           
-#     self.d_loss = self.d_loss_real + self.d_loss_fake
-# =============================================================================
+    ### Loss for GAN [Diff 1/2] start
+    self.d_loss_real = tf.reduce_mean(
+      sigmoid_cross_entropy_with_logits(self.D_logits, tf.ones_like(self.D)))
+    self.d_loss_fake = tf.reduce_mean(
+      sigmoid_cross_entropy_with_logits(self.D_logits_, tf.zeros_like(self.D_)))
+    self.g_loss = tf.reduce_mean(
+      sigmoid_cross_entropy_with_logits(self.D_logits_, tf.ones_like(self.D_)))
+    self.d_loss = self.d_loss_real + self.d_loss_fake
+    ### Loss for GAN [Diff 1/2] end
 
     t_vars = tf.trainable_variables()
 
     self.d_vars = [var for var in t_vars if 'd_' in var.name]
     self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
- 
-    ## Loss for WGAN
-    self.d_loss_real = - tf.reduce_mean(self.D)  # i left it jus because it s used in an other place but not used in the calcul of loss 
-    self.d_loss_fake = tf.reduce_mean(self.D_)
-#    self.d_loss = self.d_loss_real + self.d_loss_fake
-#    self.g_loss = - tf.reduce_mean(self.D_)
-#    ### Weight clip for WGAN
-#    self.clip_D = [var.assign(tf.clip_by_value(var, -0.05, 0.05)) for var in self.d_vars]
+
+# =============================================================================
+#     ### Loss for WGAN [Diff 1/4] start
+#     self.d_loss_real = - tf.reduce_mean(self.D) 
+#     self.d_loss_fake = tf.reduce_mean(self.D_)
+#     self.d_loss = self.d_loss_real + self.d_loss_fake
+#     self.g_loss = - tf.reduce_mean(self.D_)
+#     ### Weight clip for WGAN [Diff 2/4] start
+#     self.clip_D = [var.assign(tf.clip_by_value(var, -0.05, 0.05)) for var in self.d_vars]
+#     ### Weight clip for WGAN [Diff 2/4] end
+#     ### Loss for WGAN [Diff 1/4] end
+# =============================================================================
+    
+
     self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
     self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
-#
-
-##
-#    # LSGAN 
-    self.d_loss = tf.reduce_sum(tf.square(self.D-1) + tf.square(self.D_))/2
-    self.g_loss = tf.reduce_sum(tf.square(self.D_-1))/2
-#end lsgan 
 
     self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
     self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
@@ -152,15 +150,19 @@ class DCGAN(object):
 
   def train(self, config):
       
-    ### Opitmizer for GAN
+    ### Opitmizer for GAN [Diff 2/2] start
     d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
               .minimize(self.d_loss, var_list=self.d_vars)
     g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
               .minimize(self.g_loss, var_list=self.g_vars)
+    ### Opitmizer for GAN [Diff 2/2] end
       
-    ### Opitmizer for WGAN
-    d_optim = tf.train.RMSPropOptimizer(config.learning_rate).minimize(self.d_loss, var_list=self.d_vars)
-    g_optim = tf.train.RMSPropOptimizer(config.learning_rate).minimize(self.g_loss, var_list=self.g_vars)
+# =============================================================================
+#     ### Opitmizer for WGAN [Diff 3/4] start
+#     d_optim = tf.train.RMSPropOptimizer(config.learning_rate).minimize(self.d_loss, var_list=self.d_vars)
+#     g_optim = tf.train.RMSPropOptimizer(config.learning_rate).minimize(self.g_loss, var_list=self.g_vars)
+#     ### Opitmizer for WGAN [Diff 3/4] end
+# =============================================================================
       
     try:
       tf.global_variables_initializer().run()
@@ -223,8 +225,12 @@ class DCGAN(object):
               .astype(np.float32)
 
         # Update D network
-        ### weight clip in WGAN
-        #self.sess.run(self.clip_D)
+# =============================================================================
+#         ### weight clip in WGAN [Diff 4/4] start
+#         self.sess.run(self.clip_D)
+#         ### weight clip in WGAN [Diff 4/4] end
+# =============================================================================
+        
         _, summary_str = self.sess.run([d_optim, self.d_sum],
           feed_dict={ self.inputs: batch_images, self.z: batch_z })
         self.writer.add_summary(summary_str, counter)
@@ -337,9 +343,12 @@ class DCGAN(object):
 
   @property
   def model_dir(self):
-    return "{}_{}_{}_{}".format(
-        self.dataset_name, self.batch_size,
-        self.output_height, self.output_width)
+      return "celebA_64_64_64"
+# =============================================================================
+#     return "{}_{}_{}_{}".format(
+#         self.dataset_name, self.batch_size,
+#         self.output_height, self.output_width)
+# =============================================================================
       
   def save(self, checkpoint_dir, step):
     model_name = "DCGAN.model"
