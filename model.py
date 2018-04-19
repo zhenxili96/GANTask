@@ -127,18 +127,23 @@ class DCGAN(object):
     self.d_vars = [var for var in t_vars if 'd_' in var.name]
     self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-
-    ### Loss for WGAN
-    self.d_loss_real = - tf.reduce_mean(self.D) 
+ 
+    ## Loss for WGAN
+    self.d_loss_real = - tf.reduce_mean(self.D)  # i left it jus because it s used in an other place but not used in the calcul of loss 
     self.d_loss_fake = tf.reduce_mean(self.D_)
-    self.d_loss = self.d_loss_real + self.d_loss_fake
-    self.g_loss = - tf.reduce_mean(self.D_)
-    ### Weight clip for WGAN
-    self.clip_D = [var.assign(tf.clip_by_value(var, -0.05, 0.05)) for var in self.d_vars]
-    
-
+#    self.d_loss = self.d_loss_real + self.d_loss_fake
+#    self.g_loss = - tf.reduce_mean(self.D_)
+#    ### Weight clip for WGAN
+#    self.clip_D = [var.assign(tf.clip_by_value(var, -0.05, 0.05)) for var in self.d_vars]
     self.d_loss_real_sum = scalar_summary("d_loss_real", self.d_loss_real)
     self.d_loss_fake_sum = scalar_summary("d_loss_fake", self.d_loss_fake)
+#
+
+##
+#    # LSGAN 
+    self.d_loss = tf.reduce_sum(tf.square(self.D-1) + tf.square(self.D_))/2
+    self.g_loss = tf.reduce_sum(tf.square(self.D_-1))/2
+#end lsgan 
 
     self.g_loss_sum = scalar_summary("g_loss", self.g_loss)
     self.d_loss_sum = scalar_summary("d_loss", self.d_loss)
@@ -219,7 +224,7 @@ class DCGAN(object):
 
         # Update D network
         ### weight clip in WGAN
-        self.sess.run(self.clip_D)
+        #self.sess.run(self.clip_D)
         _, summary_str = self.sess.run([d_optim, self.d_sum],
           feed_dict={ self.inputs: batch_images, self.z: batch_z })
         self.writer.add_summary(summary_str, counter)
