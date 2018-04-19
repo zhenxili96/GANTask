@@ -2,6 +2,7 @@
 data
 fake_1000
 real_1000
+imagenet
 samples
 *.zip
 logs
