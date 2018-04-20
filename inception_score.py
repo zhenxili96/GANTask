@@ -166,11 +166,11 @@ if __name__=='__main__':
     def get_images(filename):
         return scipy.misc.imread(filename)
     
-    fake_imgs = glob.glob(os.path.join('./fake_1000', '*.*'))
+    fake_imgs = glob.glob(os.path.join('./fake_wgan_1000', '*.*'))
     real_imgs = glob.glob(os.path.join('./real_1000', '*.*'))
     
     print ("ratio,mean,std")
-    F = open("inception.csv", "w")
+    F = open("inception_score.csv", "w")
     F.write("ratio,mean,std\n")
     for i in range(101):
         fake_num = i*10
@@ -184,10 +184,29 @@ if __name__=='__main__':
         all_real_images = [get_images(filename) for filename in real_imgs]
         print (np.array(all_real_images).shape)
         ### Inception score
-        #mean, std = get_inception_score(images)
-        ### Mode Score
-        mean, std = get_mode_score(images, all_real_images)
+        mean, std = get_inception_score(images)
         print("{0},{1},{2}".format(i*1.0/100, mean, std))
         F.write("{0},{1},{2}\n".format(i*1.0/100, mean, std))
         F.flush()
     F.close()
+    
+    print ("ratio,mean,std")
+    F_ = open("mode_score.csv", "w")
+    F_.write("ratio,mean,std\n")
+    for i in range(101):
+        fake_num = i*10
+        real_num = (100-i)*10
+        idx_fake = random.sample(xrange(1000), fake_num)
+        idx_real = random.sample(xrange(1000), real_num)
+        fake_list = [fake_imgs[j] for j in idx_fake]
+        real_list = [real_imgs[j] for j in idx_real]
+        imgs_list = np.concatenate((fake_list, real_list)).tolist()   
+        images = [get_images(filename) for filename in imgs_list]
+        all_real_images = [get_images(filename) for filename in real_imgs]
+        print (np.array(all_real_images).shape)
+        ### Mode Score
+        mean, std = get_mode_score(images, all_real_images)
+        print("{0},{1},{2}".format(i*1.0/100, mean, std))
+        F_.write("{0},{1},{2}\n".format(i*1.0/100, mean, std))
+        F_.flush()
+    F_.close()
